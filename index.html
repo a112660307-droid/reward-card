@@ -16,13 +16,11 @@
     .tiny { font-size:.9rem; color:rgba(0,0,0,.6); }
     .reward-row { border-radius:14px; background:#fff; border:1px solid rgba(0,0,0,.08); }
 
-    /* 50 格：桌機 10 欄；手機 5 欄 */
     .stamp-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:10px; }
-    @media (max-width: 576px){
+    @media (max-width:576px){
       .stamp-grid { grid-template-columns:repeat(5,1fr); }
     }
 
-    /* 每個格子 */
     .stamp{
       aspect-ratio:1/1;
       border-radius:16px;
@@ -31,44 +29,29 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      font-weight:700;
       position:relative;
       overflow:hidden;
     }
 
-    /* 集到的格子 */
     .stamp.done{
       border-style:solid;
       background:rgba(13,110,253,.05);
     }
 
-    /* 章圖片（重點：章會出現就靠這段） */
+    /* 圓形印章 */
     .stamp.done::after{
-  content:"";
-  position:absolute;
-  inset:10px;
-
-  background-image: var(--stamp-img);
-  background-size: cover;          /* 讓照片填滿 */
-  background-position: center;
-  background-repeat: no-repeat;
-
-  border-radius: 50%;              /* 變圓形 */
-  box-shadow: 0 2px 2px rgba(0,0,0,.12);
-
-  opacity: .95;
-  transform: rotate(-8deg);
-  pointer-events:none;
-}
-
-    /* Banner */
-    .banner-img{
-      width:100%;
-      height:140px;
-      object-fit:cover;
-      border-radius:16px;
-      border:1px solid rgba(0,0,0,.08);
-      display:none;
+      content:"";
+      position:absolute;
+      inset:10px;
+      background-image: var(--stamp-img);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      border-radius:50%;
+      opacity:.95;
+      transform:rotate(-8deg);
+      box-shadow:0 2px 2px rgba(0,0,0,.15);
+      pointer-events:none;
     }
   </style>
 </head>
@@ -86,119 +69,27 @@
 
   <main class="container my-4">
     <div class="row g-4">
-
       <!-- 左：集點 -->
       <div class="col-12 col-lg-6">
         <div class="card card-soft">
           <div class="card-body p-4">
 
-            <div class="d-flex justify-content-between align-items-start gap-3">
+            <div class="d-flex justify-content-between align-items-start">
               <div>
                 <h1 class="h4 mb-1">我的集點卡</h1>
                 <div class="tiny" id="cardInfo">Card ID：-</div>
               </div>
               <div class="text-end">
-                <div class="tiny mb-1 text-nowrap">目前點數</div>
+                <div class="tiny mb-1">目前點數</div>
                 <div class="display-6 fw-bold mono" id="pointText">0</div>
               </div>
             </div>
 
-            <hr class="my-4" />
-            
-           <!-- 只有 Owner 看得到的設定區（Viewer 會被隱藏） -->
-<div id="ownerOnly" class="mb-3">
-  <div class="p-3 bg-white border rounded-3">
-    <div class="fw-bold mb-2">編輯者設定（只有你看得到）</div>
+            <hr class="my-4">
 
-    <div class="mb-2">
-      <label class="form-label mb-1">章圖片網址</label>
-      <input id="stampUrl" type="url" class="form-control" placeholder="貼上印章圖片網址（https://...png/jpg）">
-      <div class="form-text">建議用 PNG（透明背景效果最好）</div>
-    </div>
+            <!-- 只有 Owner 看得到 -->
+            <div id="ownerOnly" class="mb-3">
+              <div class="p-3 border rounded bg-light">
+                <div class="fw-bold mb-2">編輯者設定（只有你看得到）</div>
 
-    <div class="mb-2">
-      <label class="form-label mb-1">橫幅圖片網址（可選）</label>
-      <input id="bannerUrl" type="url" class="form-control" placeholder="貼上橫幅圖片網址（https://...jpg/png）">
-    </div>
-
-    <div class="d-flex gap-2">
-      <button id="btnSaveStamp" class="btn btn-sm btn-outline-primary">儲存章圖片</button>
-      <button id="btnSaveBanner" class="btn btn-sm btn-outline-primary">儲存橫幅</button>
-    </div>
-  </div>
-</div>
-
-            <div class="tiny mb-2">集點卡（共 50 格）</div>
-            <div class="stamp-grid" id="stampGrid"></div>
-
-            <div class="alert alert-info mt-3 mb-0 tiny">
-              你可以把只讀連結分享給同學/老師：他們只能看、不能改，但會即時看到你更新。
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右：兌獎 -->
-      <div class="col-12 col-lg-6">
-        <div class="card card-soft">
-          <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-start gap-3">
-              <div>
-                <h2 class="h4 mb-1">兌獎項目</h2>
-                <div class="tiny">按「新增項目」可無限增加（名稱 / 點數 / 備註）。</div>
-              </div>
-              <button class="btn btn-success" id="btnAddReward">新增項目</button>
-            </div>
-
-            <hr class="my-4" />
-
-            <form class="row g-2 align-items-end mb-3" id="rewardForm">
-              <div class="col-12 col-md-5">
-                <label class="form-label">獎項名稱</label>
-                <input type="text" class="form-control" id="rewardName" placeholder="例如：飲料一杯" />
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label">需要點數</label>
-                <input type="number" class="form-control" id="rewardCost" placeholder="例如：10" min="1" />
-              </div>
-              <div class="col-6 col-md-4">
-                <label class="form-label">備註（可空白）</label>
-                <input type="text" class="form-control" id="rewardNote" placeholder="例如：限週末" />
-              </div>
-            </form>
-
-            <div class="d-flex flex-column gap-2" id="rewardList"></div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </main>
-
-  <!-- Firebase init（你這段保持不變） -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBH51fveDOL4Ew7TFihcOuKneFcX-qTWWA",
-      authDomain: "reward-card-52bfd.firebaseapp.com",
-      projectId: "reward-card-52bfd",
-      storageBucket: "reward-card-52bfd.firebasestorage.app",
-      messagingSenderId: "175885966506",
-      appId: "1:175885966506:web:d158f5b8b60535beef84d3"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-
-    await signInAnonymously(auth);
-    window.firebaseApp = { db, auth };
-  </script>
-
-  <!-- 主程式 -->
-  <script type="module" src="app.js"></script>
-</body>
-</html>
+                <div class="mb-
