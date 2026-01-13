@@ -44,7 +44,7 @@ function randomId() {
 }
 
 function renderStamps(points) {
-  const maxStamps = 20;
+  const maxStamps = 50;
   ui.stampGrid.innerHTML = "";
   for (let i = 1; i <= maxStamps; i++) {
     const div = document.createElement("div");
