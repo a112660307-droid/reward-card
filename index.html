@@ -13,48 +13,59 @@
     body { background:#f6f7fb; }
     .card-soft { border:0; border-radius:18px; box-shadow:0 10px 25px rgba(0,0,0,.06); }
     .mono { font-variant-numeric: tabular-nums; }
-.stamp-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:10px; }
-@media (max-width: 576px){
-  .stamp-grid { grid-template-columns:repeat(5,1fr); }
-}
-
-/* 每個格子 */
-.stamp{
-  aspect-ratio: 1 / 1;
-  border-radius: 16px;
-  border: 2px dashed rgba(0,0,0,.15);
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 集到的格子 */
-.stamp.done{
-  border-style: solid;
-  background: rgba(13,110,253,.05);
-}
-
-/* 章圖片（重點） */
-.stamp.done::after{
-  content:"";
-  position:absolute;
-  inset:10px;
-  background-image: var(--stamp-img);
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: .95;
-  transform: rotate(-8deg);
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,.12));
-  pointer-events:none;
-}
-
     .tiny { font-size:.9rem; color:rgba(0,0,0,.6); }
     .reward-row { border-radius:14px; background:#fff; border:1px solid rgba(0,0,0,.08); }
+
+    /* 50 格：桌機 10 欄；手機 5 欄 */
+    .stamp-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:10px; }
+    @media (max-width: 576px){
+      .stamp-grid { grid-template-columns:repeat(5,1fr); }
+    }
+
+    /* 每個格子 */
+    .stamp{
+      aspect-ratio:1/1;
+      border-radius:16px;
+      border:2px dashed rgba(0,0,0,.15);
+      background:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* 集到的格子 */
+    .stamp.done{
+      border-style:solid;
+      background:rgba(13,110,253,.05);
+    }
+
+    /* 章圖片（重點：章會出現就靠這段） */
+    .stamp.done::after{
+      content:"";
+      position:absolute;
+      inset:10px;
+      background-image: var(--stamp-img);
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: .95;
+      transform: rotate(-8deg);
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.12));
+      pointer-events:none;
+    }
+
+    /* Banner */
+    .banner-img{
+      width:100%;
+      height:140px;
+      object-fit:cover;
+      border-radius:16px;
+      border:1px solid rgba(0,0,0,.08);
+      display:none;
+    }
   </style>
 </head>
 
@@ -71,22 +82,44 @@
 
   <main class="container my-4">
     <div class="row g-4">
+
       <!-- 左：集點 -->
       <div class="col-12 col-lg-6">
         <div class="card card-soft">
           <div class="card-body p-4">
+
             <div class="d-flex justify-content-between align-items-start gap-3">
               <div>
                 <h1 class="h4 mb-1">我的集點卡</h1>
                 <div class="tiny" id="cardInfo">Card ID：-</div>
               </div>
               <div class="text-end">
-                <div class="tiny mb-1">目前點數</div>
+                <div class="tiny mb-1 text-nowrap">目前點數</div>
                 <div class="display-6 fw-bold mono" id="pointText">0</div>
               </div>
             </div>
 
             <hr class="my-4" />
+
+            <!-- Banner：Owner 在網站上貼網址即可換 -->
+            <div class="mb-3">
+              <img id="bannerImg" class="banner-img" alt="banner">
+              <div id="bannerEmpty" class="tiny text-secondary" style="display:none;">尚未設定橫幅照片</div>
+
+              <div class="input-group mt-2">
+                <input id="bannerUrl" type="url" class="form-control" placeholder="橫幅圖片網址（Owner 貼網址即可）">
+                <button id="btnSaveBanner" class="btn btn-outline-primary">設定橫幅</button>
+              </div>
+            </div>
+
+            <!-- 章圖片：Owner 在網站上貼網址即可換 -->
+            <div class="mb-3">
+              <div class="tiny mb-1">章圖片網址（建議透明 PNG）</div>
+              <div class="input-group">
+                <input id="stampUrl" type="url" class="form-control" placeholder="章圖片網址（Owner 貼網址即可）">
+                <button id="btnSaveStamp" class="btn btn-outline-primary">設定章圖片</button>
+              </div>
+            </div>
 
             <div class="d-flex flex-wrap gap-2 mb-3">
               <button class="btn btn-primary" id="btnAddPoint">+1 集點</button>
@@ -137,23 +170,24 @@
           </div>
         </div>
       </div>
+
     </div>
   </main>
 
-  <!-- Firebase（你只要把 firebaseConfig 換成你記事本那段） -->
+  <!-- Firebase init（你這段保持不變） -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
-    apiKey: "AIzaSyBH51fveDOL4Ew7TFihcOuKneFcX-qTWWA",
-    authDomain: "reward-card-52bfd.firebaseapp.com",
-    projectId: "reward-card-52bfd",
-    storageBucket: "reward-card-52bfd.firebasestorage.app",
-    messagingSenderId: "175885966506",
-    appId: "1:175885966506:web:d158f5b8b60535beef84d3"
-  };
+      apiKey: "AIzaSyBH51fveDOL4Ew7TFihcOuKneFcX-qTWWA",
+      authDomain: "reward-card-52bfd.firebaseapp.com",
+      projectId: "reward-card-52bfd",
+      storageBucket: "reward-card-52bfd.firebasestorage.app",
+      messagingSenderId: "175885966506",
+      appId: "1:175885966506:web:d158f5b8b60535beef84d3"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
