@@ -45,11 +45,22 @@ function randomId() {
 
 function renderStamps(points) {
   const maxStamps = 50;
+
+  // ✅ 先用預設章圖（下一步會改成可由 Owner 在網站設定並同步）
+  const defaultStampImgUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Red_stamp.svg/512px-Red_stamp.svg.png";
+
   ui.stampGrid.innerHTML = "";
   for (let i = 1; i <= maxStamps; i++) {
     const div = document.createElement("div");
-    div.className = "stamp" + (i <= points ? " done" : "");
-    div.title = i <= points ? `已集到第 ${i} 點` : `第 ${i} 點`;
+    const done = i <= points;
+    div.className = "stamp" + (done ? " done" : "");
+    div.title = done ? `已集到第 ${i} 點` : `第 ${i} 點`;
+
+    // 把章圖網址塞進 CSS 變數
+    if (done) {
+      div.style.setProperty("--stamp-img", `url("${defaultStampImgUrl}")`);
+    }
+
     ui.stampGrid.appendChild(div);
   }
 }
