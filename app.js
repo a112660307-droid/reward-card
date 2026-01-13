@@ -104,6 +104,9 @@ function setReadonly(readonly) {
   lockBtn(ui.btnSaveBanner);
   lockInput(ui.stampUrl);
   lockBtn(ui.btnSaveStamp);
+  // Viewer（只讀）看不到設定區
+  const ownerOnly = document.getElementById("ownerOnly");
+  if (ownerOnly) ownerOnly.style.display = readonly ? "none" : "block";
 }
 
 function setModeBadge(isOwner) {
