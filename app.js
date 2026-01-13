@@ -1,149 +1,273 @@
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>集點卡｜可分享＋即時同步＋只讀</title>
+import {
+  doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+function qs(id) { return document.getElementById(id); }
+function escapeHtml(str) {
+  return (str ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+  }[m]));
+}
 
-  <style>
-    body { background:#f6f7fb; }
-    .card-soft { border:0; border-radius:18px; box-shadow:0 10px 25px rgba(0,0,0,.06); }
-    .mono { font-variant-numeric: tabular-nums; }
-    .tiny { font-size:.9rem; color:rgba(0,0,0,.6); }
+const ui = {
+  modeBadge: qs("modeBadge"),
+  btnCopyShare: qs("btnCopyShare"),
+  cardInfo: qs("cardInfo"),
+  pointText: qs("pointText"),
+  stampGrid: qs("stampGrid"),
 
-    .stamp-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:10px; }
-    @media (max-width:576px){ .stamp-grid { grid-template-columns:repeat(5,1fr); } }
+  btnAddPoint: qs("btnAddPoint"),
+  btnMinusPoint: qs("btnMinusPoint"),
+  btnReset: qs("btnReset"),
 
-    .stamp{
-      aspect-ratio:1/1;
-      border-radius:16px;
-      border:2px dashed rgba(0,0,0,.15);
-      background:#fff;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-weight:700;
-      color:rgba(0,0,0,.45);
-      user-select:none;
+  rewardName: qs("rewardName"),
+  rewardCost: qs("rewardCost"),
+  rewardNote: qs("rewardNote"),
+  btnAddReward: qs("btnAddReward"),
+  rewardList: qs("rewardList"),
+};
+
+function getCardIdFromUrl() {
+  const p = new URLSearchParams(location.search);
+  return p.get("card");
+}
+function setCardIdToUrl(cardId) {
+  const url = new URL(location.href);
+  url.searchParams.set("card", cardId);
+  history.replaceState({}, "", url.toString());
+}
+function randomId() {
+  if (crypto?.randomUUID) return crypto.randomUUID();
+  return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now();
+}
+
+function renderStamps(points) {
+  const maxStamps = 50;
+  ui.stampGrid.innerHTML = "";
+  for (let i = 1; i <= maxStamps; i++) {
+    const div = document.createElement("div");
+    const done = i <= points;
+    div.className = "stamp" + (done ? " done" : "");
+    div.textContent = done ? "✓" : "";
+    div.title = done ? `已集到第 ${i} 點` : `第 ${i} 點`;
+    ui.stampGrid.appendChild(div);
+  }
+}
+
+function setReadonly(readonly) {
+  const lockBtn = (el) => { if (el) el.disabled = readonly; };
+  const lockInput = (el) => { if (el) el.disabled = readonly; };
+
+  lockBtn(ui.btnAddPoint);
+  lockBtn(ui.btnMinusPoint);
+  lockBtn(ui.btnReset);
+  lockBtn(ui.btnAddReward);
+
+  lockInput(ui.rewardName);
+  lockInput(ui.rewardCost);
+  lockInput(ui.rewardNote);
+}
+
+function setModeBadge(isOwner) {
+  ui.modeBadge.className = "badge " + (isOwner ? "text-bg-success" : "text-bg-secondary");
+  ui.modeBadge.textContent = isOwner ? "可編輯（Owner）" : "只讀（Viewer）";
+}
+
+async function main() {
+  // 等 Firebase 初始化
+  const waitFirebase = async () => {
+    for (let i = 0; i < 80; i++) {
+      if (window.firebaseApp?.db && window.firebaseApp?.auth?.currentUser) return;
+      await new Promise(r => setTimeout(r, 50));
     }
-    .stamp.done{
-      border-style:solid;
-      background:rgba(25,135,84,.10);
-      color:#198754;
+    throw new Error("Firebase 尚未初始化完成");
+  };
+  await waitFirebase();
+
+  const { db, auth } = window.firebaseApp;
+  const myUid = auth.currentUser.uid;
+
+  // 取得/建立 cardId
+  let cardId = getCardIdFromUrl();
+  if (!cardId) {
+    cardId = randomId();
+    setCardIdToUrl(cardId);
+  }
+  ui.cardInfo.textContent = `Card ID：${cardId}`;
+
+  const cardRef = doc(db, "cards", cardId);
+
+  // 第一次建立（Owner）
+  const snap = await getDoc(cardRef);
+  if (!snap.exists()) {
+    await setDoc(cardRef, {
+      ownerUid: myUid,
+      points: 0,
+      rewards: [],
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  // 即時同步
+  onSnapshot(cardRef, (s) => {
+    if (!s.exists()) {
+      ui.modeBadge.className = "badge text-bg-danger";
+      ui.modeBadge.textContent = "找不到此卡片";
+      setReadonly(true);
+      ui.rewardList.innerHTML = `<div class="text-danger">此 cardId 不存在或已被刪除。</div>`;
+      return;
     }
-    .reward-row { border-radius:14px; background:#fff; border:1px solid rgba(0,0,0,.08); }
-  </style>
-</head>
 
-<body>
-  <nav class="navbar bg-white border-bottom">
-    <div class="container py-2 d-flex justify-content-between align-items-center">
-      <div class="fw-bold">集點卡</div>
-      <div class="d-flex gap-2 align-items-center">
-        <span id="modeBadge" class="badge text-bg-secondary">載入中…</span>
-        <button id="btnCopyShare" class="btn btn-sm btn-outline-primary">複製只讀分享連結</button>
-      </div>
-    </div>
-  </nav>
+    const data = s.data();
+    const isOwner = data.ownerUid === myUid;
 
-  <main class="container my-4">
-    <div class="row g-4">
-      <!-- 左：集點 -->
-      <div class="col-12 col-lg-6">
-        <div class="card card-soft">
-          <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-start gap-3">
-              <div>
-                <h1 class="h4 mb-1">我的集點卡</h1>
-                <div class="tiny" id="cardInfo">Card ID：-</div>
-              </div>
-              <div class="text-end">
-                <div class="tiny mb-1">目前點數</div>
-                <div class="display-6 fw-bold mono" id="pointText">0</div>
-              </div>
+    setModeBadge(isOwner);
+    setReadonly(!isOwner);
+
+    const points = Math.max(0, Number(data.points || 0));
+    ui.pointText.textContent = points;
+    renderStamps(points);
+
+    renderRewards(data.rewards || [], isOwner, points);
+  });
+
+  // 分享連結
+  ui.btnCopyShare.addEventListener("click", async () => {
+    const url = new URL(location.origin + location.pathname);
+    url.searchParams.set("card", cardId);
+    const shareLink = url.toString();
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      ui.btnCopyShare.textContent = "已複製！";
+      setTimeout(() => (ui.btnCopyShare.textContent = "複製只讀分享連結"), 1200);
+    } catch {
+      prompt("複製這個連結分享（只讀）", shareLink);
+    }
+  });
+
+  // 點數操作（Owner）
+  ui.btnAddPoint.addEventListener("click", async () => {
+    await safeUpdate(cardRef, { pointsDelta: +1 });
+  });
+  ui.btnMinusPoint.addEventListener("click", async () => {
+    await safeUpdate(cardRef, { pointsDelta: -1 });
+  });
+  ui.btnReset.addEventListener("click", async () => {
+    if (!confirm("確定要重置點數與兌獎清單嗎？")) return;
+    await updateDoc(cardRef, { points: 0, rewards: [], updatedAt: serverTimestamp() });
+  });
+
+  // 新增獎項（Owner）
+  ui.btnAddReward.addEventListener("click", async () => {
+    const name = ui.rewardName.value.trim();
+    const cost = Number(ui.rewardCost.value.trim());
+    const note = ui.rewardNote.value.trim();
+
+    if (!name) return alert("請輸入獎項名稱。");
+    if (!Number.isFinite(cost) || cost <= 0) return alert("需要點數請輸入正整數。");
+
+    const cur = await getDoc(cardRef);
+    const data = cur.data();
+    const rewards = Array.isArray(data.rewards) ? data.rewards : [];
+
+    rewards.unshift({
+      id: randomId(),
+      name,
+      cost: Math.floor(cost),
+      note,
+      createdAt: Date.now()
+    });
+
+    await updateDoc(cardRef, { rewards, updatedAt: serverTimestamp() });
+
+    ui.rewardName.value = "";
+    ui.rewardCost.value = "";
+    ui.rewardNote.value = "";
+  });
+
+  // 兌換/刪除（Owner）
+  ui.rewardList.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const rid = btn.dataset.id;
+    if (!action || !rid) return;
+
+    const cur = await getDoc(cardRef);
+    const data = cur.data();
+    const rewards = Array.isArray(data.rewards) ? data.rewards : [];
+    const points = Math.max(0, Number(data.points || 0));
+    const item = rewards.find(r => r.id === rid);
+    if (!item) return;
+
+    if (action === "delete") {
+      if (!confirm(`確定刪除「${item.name}」？`)) return;
+      const next = rewards.filter(r => r.id !== rid);
+      await updateDoc(cardRef, { rewards: next, updatedAt: serverTimestamp() });
+      return;
+    }
+
+    if (action === "redeem") {
+      if (points < item.cost) return alert(`點數不足（目前 ${points} 點，需 ${item.cost} 點）。`);
+      if (!confirm(`確定兌換「${item.name}」並扣 ${item.cost} 點？`)) return;
+
+      await updateDoc(cardRef, { points: points - item.cost, updatedAt: serverTimestamp() });
+      return;
+    }
+  });
+
+  async function safeUpdate(ref, { pointsDelta }) {
+    const cur = await getDoc(ref);
+    const data = cur.data();
+    const points = Math.max(0, Number(data.points || 0));
+    const next = Math.max(0, points + pointsDelta);
+    await updateDoc(ref, { points: next, updatedAt: serverTimestamp() });
+  }
+
+  function renderRewards(rewards, isOwner, points) {
+    ui.rewardList.innerHTML = "";
+
+    if (!rewards.length) {
+      ui.rewardList.innerHTML = `<div class="text-secondary tiny">目前沒有兌獎項目，請按「新增項目」。</div>`;
+      return;
+    }
+
+    rewards.forEach(r => {
+      const wrap = document.createElement("div");
+      wrap.className = "reward-row p-3";
+
+      const noteBadge = r.note ? `<span class="badge text-bg-light text-dark border">${escapeHtml(r.note)}</span>` : "";
+      const disabledAttr = isOwner ? "" : "disabled";
+
+      wrap.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div class="flex-grow-1">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="fw-bold">${escapeHtml(r.name)}</div>
+              <span class="badge text-bg-secondary">需 ${Number(r.cost)} 點</span>
+              ${noteBadge}
             </div>
-
-            <hr class="my-4" />
-
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <button class="btn btn-primary" id="btnAddPoint">+1 集點</button>
-              <button class="btn btn-outline-secondary" id="btnMinusPoint">-1 退點</button>
-              <button class="btn btn-outline-danger" id="btnReset">重置</button>
-            </div>
-
-            <div class="tiny mb-2">集點卡（共 50 格）</div>
-            <div class="stamp-grid" id="stampGrid"></div>
-
-            <div class="alert alert-info mt-3 mb-0 tiny">
-              你可以把右上角「只讀分享連結」給同學/老師：他們只能看、不能改，但會即時看到你更新。
-            </div>
+            <div class="tiny mt-1">目前點數：${points}</div>
+          </div>
+          <div class="d-flex flex-column gap-2">
+            <button class="btn btn-sm btn-primary" data-action="redeem" data-id="${r.id}" ${disabledAttr}>兌換</button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete" data-id="${r.id}" ${disabledAttr}>刪除</button>
           </div>
         </div>
-      </div>
+      `;
+      ui.rewardList.appendChild(wrap);
+    });
+  }
+}
 
-      <!-- 右：兌獎 -->
-      <div class="col-12 col-lg-6">
-        <div class="card card-soft">
-          <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-start gap-3">
-              <div>
-                <h2 class="h4 mb-1">兌獎項目</h2>
-                <div class="tiny">Owner 才能新增/刪除/兌換（Viewer 只能看）。</div>
-              </div>
-              <button class="btn btn-success" id="btnAddReward">新增項目</button>
-            </div>
-
-            <hr class="my-4" />
-
-            <form class="row g-2 align-items-end mb-3" id="rewardForm">
-              <div class="col-12 col-md-5">
-                <label class="form-label">獎項名稱</label>
-                <input type="text" class="form-control" id="rewardName" placeholder="例如：飲料一杯" />
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label">需要點數</label>
-                <input type="number" class="form-control" id="rewardCost" placeholder="例如：10" min="1" />
-              </div>
-              <div class="col-6 col-md-4">
-                <label class="form-label">備註（可空白）</label>
-                <input type="text" class="form-control" id="rewardNote" placeholder="例如：限週末" />
-              </div>
-            </form>
-
-            <div class="d-flex flex-column gap-2" id="rewardList"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Firebase：把這段 firebaseConfig 換成你 Firebase Console 給你的那段（整段貼上） -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    // ✅ 請用「Firebase Console → Project settings → Your apps → Use a <script> tag」那段完全取代
-    const firebaseConfig = {
-      apiKey: "請貼你的",
-      authDomain: "請貼你的",
-      projectId: "請貼你的",
-      storageBucket: "請貼你的",
-      messagingSenderId: "請貼你的",
-      appId: "請貼你的"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-
-    await signInAnonymously(auth);
-    window.firebaseApp = { db, auth };
-  </script>
-
-  <script type="module" src="app.js"></script>
-</body>
-</html>
+main().catch((e) => {
+  console.error(e);
+  const badge = document.getElementById("modeBadge");
+  if (badge) {
+    badge.className = "badge text-bg-danger";
+    badge.textContent = "啟動失敗";
+  }
+  alert("啟動失敗：請檢查 Firebase 的 Rules 是否已 Publish、Anonymous 是否 Enabled、以及 firebaseConfig 是否貼對。");
+});
