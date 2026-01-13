@@ -131,6 +131,29 @@
               <button class="btn btn-outline-danger" id="btnReset">重置</button>
             </div>
 
+           <!-- 只有 Owner 看得到的設定區（Viewer 會被隱藏） -->
+<div id="ownerOnly" class="mb-3">
+  <div class="p-3 bg-white border rounded-3">
+    <div class="fw-bold mb-2">編輯者設定（只有你看得到）</div>
+
+    <div class="mb-2">
+      <label class="form-label mb-1">章圖片網址</label>
+      <input id="stampUrl" type="url" class="form-control" placeholder="貼上印章圖片網址（https://...png/jpg）">
+      <div class="form-text">建議用 PNG（透明背景效果最好）</div>
+    </div>
+
+    <div class="mb-2">
+      <label class="form-label mb-1">橫幅圖片網址（可選）</label>
+      <input id="bannerUrl" type="url" class="form-control" placeholder="貼上橫幅圖片網址（https://...jpg/png）">
+    </div>
+
+    <div class="d-flex gap-2">
+      <button id="btnSaveStamp" class="btn btn-sm btn-outline-primary">儲存章圖片</button>
+      <button id="btnSaveBanner" class="btn btn-sm btn-outline-primary">儲存橫幅</button>
+    </div>
+  </div>
+</div>
+
             <div class="tiny mb-2">集點卡（共 50 格）</div>
             <div class="stamp-grid" id="stampGrid"></div>
 
