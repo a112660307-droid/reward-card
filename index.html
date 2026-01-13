@@ -13,7 +13,10 @@
     body { background:#f6f7fb; }
     .card-soft { border:0; border-radius:18px; box-shadow:0 10px 25px rgba(0,0,0,.06); }
     .mono { font-variant-numeric: tabular-nums; }
-    .stamp-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+    .stamp-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:10px; }
+@media (max-width: 576px){
+  .stamp-grid { grid-template-columns:repeat(5,1fr); }
+}
     .stamp { aspect-ratio:1/1; border-radius:16px; border:2px dashed rgba(0,0,0,.15); background:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
     .stamp.done { border-style:solid; background:rgba(13,110,253,.08); }
     .stamp.done::after { content:"✓"; font-size:22px; }
