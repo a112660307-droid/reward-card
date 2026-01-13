@@ -144,5 +144,37 @@
   </script>
 
   <script type="module" src="app.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  // 🔴 等一下把這一段換成你記事本裡的 firebaseConfig
+  const firebaseConfig = {
+    apiKey: "AIzaSyBH51fveDOL4Ew7TFihcOuKneFcX-qTWWA",
+    authDomain: "reward-card-52bfd.firebaseapp.com",
+    projectId: "reward-card-52bfd",
+    storageBucket: "reward-card-52bfd.firebasestorage.app",
+    messagingSenderId: "175885966506",
+    appId: "1:175885966506:web:d158f5b8b60535beef84d3"
+  };
+
+  // 初始化 Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // 匿名登入（編輯者用）
+  signInAnonymously(auth).catch(console.error);
+
+  // 把 db / auth 丟給 app.js 用
+  window.firebaseApp = { db, auth };
+</script>
+
+<!-- 你的主要程式 -->
+<script src="app.js"></script>
+
+  
 </body>
 </html>
