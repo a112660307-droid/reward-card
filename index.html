@@ -19,7 +19,24 @@
 }
     .stamp { aspect-ratio:1/1; border-radius:16px; border:2px dashed rgba(0,0,0,.15); background:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
     .stamp.done { border-style:solid; background:rgba(13,110,253,.08); }
-    .stamp.done::after { content:"✓"; font-size:22px; }
+    /* 已集點的格子：顯示章圖片 */
+    .stamp { position: relative; overflow: hidden; }
+    .stamp.done { border-style: solid; background: rgba(13,110,253,.05); }
+
+/* 章圖片 */
+.stamp.done::after{
+  content:"";
+  position:absolute;
+  inset:10px;
+  background-image: var(--stamp-img);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: .92;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.12));
+  pointer-events:none;
+}
     .tiny { font-size:.9rem; color:rgba(0,0,0,.6); }
     .reward-row { border-radius:14px; background:#fff; border:1px solid rgba(0,0,0,.08); }
   </style>
