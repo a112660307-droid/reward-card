@@ -25,6 +25,15 @@ const ui = {
   rewardNote: qs("rewardNote"),
   btnAddReward: qs("btnAddReward"),
   rewardList: qs("rewardList"),
+
+  // Banner / Stamp 設定（Owner 在網站貼網址）
+  bannerImg: qs("bannerImg"),
+  bannerEmpty: qs("bannerEmpty"),
+  bannerUrl: qs("bannerUrl"),
+  btnSaveBanner: qs("btnSaveBanner"),
+
+  stampUrl: qs("stampUrl"),
+  btnSaveStamp: qs("btnSaveStamp"),
 };
 
 function getCardIdFromUrl() {
@@ -43,11 +52,12 @@ function randomId() {
   return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now();
 }
 
-function renderStamps(points) {
+function renderStamps(points, stampImgUrl) {
   const maxStamps = 50;
 
-  // ✅ 先用預設章圖（下一步會改成可由 Owner 在網站設定並同步）
-  const defaultStampImgUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Red_stamp.svg/512px-Red_stamp.svg.png";
+  // 如果你還沒設定章圖片，就先用測試章圖（保證看得到）
+  const fallback = "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Red_stamp.svg/512px-Red_stamp.svg.png";
+  const finalUrl = (stampImgUrl || "").trim() || fallback;
 
   ui.stampGrid.innerHTML = "";
   for (let i = 1; i <= maxStamps; i++) {
@@ -56,32 +66,44 @@ function renderStamps(points) {
     div.className = "stamp" + (done ? " done" : "");
     div.title = done ? `已集到第 ${i} 點` : `第 ${i} 點`;
 
-    // 把章圖網址塞進 CSS 變數
     if (done) {
-      div.style.setProperty("--stamp-img", `url("${defaultStampImgUrl}")`);
+      div.style.setProperty("--stamp-img", `url("${finalUrl}")`);
     }
 
     ui.stampGrid.appendChild(div);
   }
 }
 
+function renderBanner(bannerUrl) {
+  const url = (bannerUrl || "").trim();
+  if (url) {
+    ui.bannerImg.src = url;
+    ui.bannerImg.style.display = "";
+    ui.bannerEmpty.style.display = "none";
+  } else {
+    ui.bannerImg.style.display = "none";
+    ui.bannerEmpty.style.display = "";
+  }
+}
+
 function setReadonly(readonly) {
-  const lock = (el, ro) => {
-    if (!el) return;
-    if (el.tagName === "BUTTON") el.disabled = ro;
-    else el.disabled = ro;
-  };
+  const lockBtn = (el) => { if (el) el.disabled = readonly; };
+  const lockInput = (el) => { if (el) el.disabled = readonly; };
 
-  lock(ui.btnAddPoint, readonly);
-  lock(ui.btnMinusPoint, readonly);
-  lock(ui.btnReset, readonly);
-  lock(ui.btnAddReward, readonly);
+  lockBtn(ui.btnAddPoint);
+  lockBtn(ui.btnMinusPoint);
+  lockBtn(ui.btnReset);
+  lockBtn(ui.btnAddReward);
 
-  ui.rewardName.disabled = readonly;
-  ui.rewardCost.disabled = readonly;
-  ui.rewardNote.disabled = readonly;
+  lockInput(ui.rewardName);
+  lockInput(ui.rewardCost);
+  lockInput(ui.rewardNote);
 
-  // 兌換/刪除按鈕：渲染時再處理（下面 renderRewards 會控制）
+  // Owner 才能改 banner / stamp
+  lockInput(ui.bannerUrl);
+  lockBtn(ui.btnSaveBanner);
+  lockInput(ui.stampUrl);
+  lockBtn(ui.btnSaveStamp);
 }
 
 function setModeBadge(isOwner) {
@@ -89,9 +111,7 @@ function setModeBadge(isOwner) {
   ui.modeBadge.textContent = isOwner ? "可編輯（Owner）" : "只讀（Viewer）";
 }
 
-// ---------- 主流程 ----------
 async function main() {
-  // 等待 firebase init 完成（index.html 會把 db/auth 放在 window.firebaseApp）
   const waitFirebase = async () => {
     for (let i = 0; i < 80; i++) {
       if (window.firebaseApp?.db && window.firebaseApp?.auth?.currentUser) return;
@@ -104,29 +124,29 @@ async function main() {
   const { db, auth } = window.firebaseApp;
   const myUid = auth.currentUser.uid;
 
-  // 取得 / 建立 cardId
   let cardId = getCardIdFromUrl();
   if (!cardId) {
     cardId = randomId();
     setCardIdToUrl(cardId);
   }
-
   ui.cardInfo.textContent = `Card ID：${cardId}`;
 
   const cardRef = doc(db, "cards", cardId);
 
-  // 如果不存在：只有「第一次開的人」會建立（owner）
+  // 第一次建立卡片（Owner）
   const snap = await getDoc(cardRef);
   if (!snap.exists()) {
     await setDoc(cardRef, {
       ownerUid: myUid,
       points: 0,
       rewards: [],
+      bannerUrl: "",
+      stampImgUrl: "",
       updatedAt: serverTimestamp(),
     });
   }
 
-  // 即時監聽（同步）
+  // 監聽同步
   onSnapshot(cardRef, (s) => {
     if (!s.exists()) {
       ui.modeBadge.className = "badge text-bg-danger";
@@ -144,17 +164,21 @@ async function main() {
 
     const points = Math.max(0, Number(data.points || 0));
     ui.pointText.textContent = points;
-    renderStamps(points);
 
+    // Banner / Stamp
+    renderBanner(data.bannerUrl || "");
+    if (ui.bannerUrl) ui.bannerUrl.value = (data.bannerUrl || "");
+    if (ui.stampUrl) ui.stampUrl.value = (data.stampImgUrl || "");
+
+    renderStamps(points, data.stampImgUrl || "");
     renderRewards(data.rewards || [], isOwner, points);
   });
 
-  // 分享只讀連結（就是 ?card=xxx）
+  // 複製分享（Viewer 只讀：靠 Rules 擋寫入）
   ui.btnCopyShare.addEventListener("click", async () => {
     const url = new URL(location.origin + location.pathname);
     url.searchParams.set("card", cardId);
     const shareLink = url.toString();
-
     try {
       await navigator.clipboard.writeText(shareLink);
       ui.btnCopyShare.textContent = "已複製！";
@@ -164,7 +188,7 @@ async function main() {
     }
   });
 
-  // 只有 owner 能按（Rules 也會擋）
+  // 點數
   ui.btnAddPoint.addEventListener("click", async () => {
     await safeUpdate(cardRef, { pointsDelta: +1 });
   });
@@ -178,6 +202,21 @@ async function main() {
     await updateDoc(cardRef, { points: 0, rewards: [], updatedAt: serverTimestamp() });
   });
 
+  // 設定 Banner
+  ui.btnSaveBanner.addEventListener("click", async () => {
+    const url = ui.bannerUrl.value.trim();
+    if (url && !/^https?:\/\//i.test(url)) return alert("請貼上完整圖片網址（https:// 開頭）");
+    await updateDoc(cardRef, { bannerUrl: url, updatedAt: serverTimestamp() });
+  });
+
+  // 設定 章圖片
+  ui.btnSaveStamp.addEventListener("click", async () => {
+    const url = ui.stampUrl.value.trim();
+    if (url && !/^https?:\/\//i.test(url)) return alert("請貼上完整圖片網址（https:// 開頭）");
+    await updateDoc(cardRef, { stampImgUrl: url, updatedAt: serverTimestamp() });
+  });
+
+  // 新增獎項
   ui.btnAddReward.addEventListener("click", async () => {
     const name = ui.rewardName.value.trim();
     const cost = Number(ui.rewardCost.value.trim());
@@ -186,7 +225,6 @@ async function main() {
     if (!name) return alert("請輸入獎項名稱。");
     if (!Number.isFinite(cost) || cost <= 0) return alert("需要點數請輸入正整數。");
 
-    // 先讀目前資料再更新（簡單做法：用 getDoc）
     const cur = await getDoc(cardRef);
     const data = cur.data();
     const rewards = Array.isArray(data.rewards) ? data.rewards : [];
@@ -206,7 +244,7 @@ async function main() {
     ui.rewardNote.value = "";
   });
 
-  // 清單按鈕（兌換/刪除）
+  // 兌換/刪除
   ui.rewardList.addEventListener("click", async (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
@@ -232,7 +270,6 @@ async function main() {
     if (action === "redeem") {
       if (points < item.cost) return alert(`點數不足（目前 ${points} 點，需 ${item.cost} 點）。`);
       if (!confirm(`確定兌換「${item.name}」並扣 ${item.cost} 點？`)) return;
-
       const nextPoints = points - item.cost;
       await updateDoc(cardRef, { points: nextPoints, updatedAt: serverTimestamp() });
       return;
@@ -290,4 +327,3 @@ main().catch((e) => {
   badge.textContent = "啟動失敗";
   alert("啟動失敗：請打開 F12 Console 看錯誤訊息（常見是 firebaseConfig 沒貼對或 Rules 沒 Publish）。");
 });
-
