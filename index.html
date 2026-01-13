@@ -1,1 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>集點卡（即時同步）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+
+<body>
+  <h1>我的集點卡</h1>
+  <p>如果你看到這行字，代表 index.html 已正常運作。</p>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+    apiKey: "AIzaSyBH51fveDOL4Ew7TFihcOuKneFcX-qTWWA",
+    authDomain: "reward-card-52bfd.firebaseapp.com",
+    projectId: "reward-card-52bfd",
+    storageBucket: "reward-card-52bfd.firebasestorage.app",
+    messagingSenderId: "175885966506",
+    appId: "1:175885966506:web:d158f5b8b60535beef84d3"
+  };
+
+
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // 匿名登入
+    signInAnonymously(auth).catch(console.error);
+
+    // 暫時測試用：確認 Firebase 有載入
+    console.log("Firebase 已初始化", app);
+
+    // 暴露給 app.js 用（下一步才會用到）
+    window.firebaseApp = { db, auth };
+  </script>
+
+</body>
+</html>
 
